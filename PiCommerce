@@ -1,0 +1,90 @@
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+# Tasa de conversión: 1 Pi = 6700 USD
+PI_TO_USD = 6700
+
+# Listado de tiendas y productos
+stores = {
+    "MercadoLibre": {
+        "id": 1,
+        "products": [
+            {"name": "Smartphone", "price_pi": 10},  # 10 Pi
+            {"name": "Laptop", "price_pi": 25}       # 25 Pi
+        ]
+    },
+    "Walmart": {
+        "id": 2,
+        "products": [
+            {"name": "Televisor", "price_pi": 15},   # 15 Pi
+            {"name": "Consola de videojuegos", "price_pi": 20}  # 20 Pi
+        ]
+    },
+    "Amazon": {
+        "id": 3,
+        "products": [
+            {"name": "Auriculares", "price_pi": 5},  # 5 Pi
+            {"name": "Reloj inteligente", "price_pi": 12}  # 12 Pi
+        ]
+    }
+}
+
+# Balance inicial de Pi coins del usuario
+user_balance_pi = 50  # El usuario tiene 50 Pi coins
+
+# Endpoint para ver productos en las tiendas con precios en Pi y USD
+@app.route('/stores', methods=['GET'])
+def get_stores():
+    stores_with_usd = {}
+    
+    for store, details in stores.items():
+        products_with_usd = []
+        for product in details["products"]:
+            product_with_usd = product.copy()
+            product_with_usd["price_usd"] = product["price_pi"] * PI_TO_USD
+            products_with_usd.append(product_with_usd)
+        
+        stores_with_usd[store] = {
+            "id": details["id"],
+            "products": products_with_usd
+        }
+    
+    return jsonify(stores_with_usd)
+
+# Endpoint para realizar una compra
+@app.route('/buy', methods=['POST'])
+def buy_product():
+    global user_balance_pi
+    data = request.json
+    store_name = data.get('store')
+    product_name = data.get('product')
+
+    # Verificar si la tienda existe
+    if store_name not in stores:
+        return jsonify({"error": "Tienda no encontrada"}), 404
+
+    store = stores[store_name]
+    # Buscar el producto en la tienda
+    product = next((p for p in store['products'] if p['name'] == product_name), None)
+
+    # Verificar si el producto existe
+    if not product:
+        return jsonify({"error": "Producto no encontrado"}), 404
+
+    # Verificar si el usuario tiene saldo suficiente
+    if user_balance_pi < product['price_pi']:
+        return jsonify({"error": "Saldo insuficiente en Pi coins"}), 400
+
+    # Realizar la compra
+    user_balance_pi -= product['price_pi']
+    total_usd = product['price_pi'] * PI_TO_USD
+    
+    return jsonify({
+        "message": f"Has comprado {product_name} en {store_name} por {product['price_pi']} Pi coins (equivalente a ${total_usd:.2f} USD).",
+        "remaining_balance_pi": user_balance_pi,
+        "remaining_balance_usd": user_balance_pi * PI_TO_USD
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True)
